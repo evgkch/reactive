@@ -8,6 +8,8 @@ import { core } from "./core.js";
 export { core };
 export const configure = core.configure;
 export type { Patch, WatcherLike } from "./core.js";
+export { getObjectId } from "./log.js";
+export type { LogLevel } from "./log.js";
 export type { ValuePatch } from "./value.js";
 export type { StructPatch } from "./struct.js";
 export type { ListPatch } from "./list.js";

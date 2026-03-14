@@ -222,6 +222,38 @@ configure({ watch: "async" }); // Watch callbacks are deferred/batched
 
 ---
 
+## Debug logging
+
+For development you can enable logging so all Batch runs, Watch patches, and stop calls are printed to the console. Objects (targets, Values, Lists, etc.) get **stable ids** (e.g. `t1`, `t2`) so you can correlate them in DevTools.
+
+```ts
+import { configure, getObjectId } from "@evgkch/reactive";
+
+// Default level: Batch run (init/triggered), Watch patch summary, stop()
+configure({ log: true });
+
+// Verbose: also track (who subscribed to what), trigger (who was notified), configure
+configure({ log: "verbose" });
+
+// Off (default)
+configure({ log: false });
+```
+
+**Log levels**
+
+| Level       | What is logged |
+| ----------- | ------------------------------------------------------------------------------ |
+| `false`     | Nothing (default).                                                             |
+| `true`      | `[Batch #n] run (init \| triggered)`, `[Watch #n] t#key patchSummary`, `stop`. |
+| `"verbose"` | Above + `[track]`, `[trigger]`, `[configure]`.                                  |
+
+**Using object ids**
+
+- Every reactive target (Value, Struct, List, your primitive) gets a stable id like `t1`, `t2` when it first appears in a log line.
+- To inspect an object in the console, call `getObjectId(obj)` — it returns the same id and creates one if missing. You can then filter logs by that id or set breakpoints.
+
+---
+
 ## Custom primitives
 
 You can create your own reactive primitives by extending `Reactive<P>` and using `core`:
@@ -278,6 +310,7 @@ x.set(1); // → patch, then x: 1
 | `Batch(fn)`                                    | Runs `fn` reactively. Returns `() => void` to stop                              |
 | `Watch(source, fn)`                            | Attach a watcher to a primitive. Returns `() => void` to stop                   |
 | `source.watch(fn)`                             | Method form of `Watch`. Returns `() => void` to stop                            |
-| `configure(options)`                           | Set global defaults: `{ batch?: "sync" \| "async"; watch?: "sync" \| "async" }` |
-| `ValuePatch<T>`, `StructPatch`, `ListPatch<T>` | Patch types for Watch callbacks (exported)                                      |
+| `configure(options)`                           | Global defaults: `{ batch?, watch?, log?: false \| true \| "verbose" }`         |
+| `getObjectId(obj)`                             | Stable id for any object (for correlating logs). Returns e.g. `"t1"`.           |
+| `ValuePatch<T>`, `StructPatch`, `ListPatch<T>` | Patch types for Watch callbacks (exported)                                     |
 | `Reactive<P>`                                  | Base class for custom primitives. Implement `protected subscribe(w)`            |
