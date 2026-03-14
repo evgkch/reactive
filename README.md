@@ -21,7 +21,7 @@ Two ways to react:
 - **`Batch`** — reruns when state changes (batched, async)
 - **`Watch`** — fires when an operation happens (sync, with patch)
 
-That's the whole API.
+That's the core API.
 
 ---
 
@@ -30,8 +30,6 @@ That's the whole API.
 ```sh
 npm install @evgkch/reactive
 ```
-
-More examples: see the `examples/` folder in the repo.
 
 ---
 
@@ -101,8 +99,6 @@ Supported methods: `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse
 
 Runs a function immediately, then reruns it when any reactive value it read has changed. Updates are **batched in a microtask** — multiple changes in one tick produce one rerun.
 
-Optional second argument: `Batch(fn, immediate?)`. When `immediate === true`, the callback runs synchronously (no microtask). Default comes from `configure({ batch })`.
-
 Returns a stop function to unsubscribe.
 
 ```ts
@@ -127,11 +123,9 @@ a.set(99);
 
 ## Watch
 
-Fires **synchronously** when an operation happens on a primitive. Receives a patch describing exactly what changed.
+Fires **synchronously** when an operation happens on a primitive. Receives a patch describing exactly what changed — not just that something changed, but what, where, and how.
 
-Optional second argument: `Watch(source, fn, immediate?)` / `source.watch(fn, immediate?)`. When `immediate === false`, the callback is deferred (e.g. batched). Default comes from `configure({ watch })`.
-
-Returns a stop function to unsubscribe.
+Each primitive has a `.watch()` method; `Watch(source, fn)` is the function form. Both return a stop function to unsubscribe. Exported patch types: `ValuePatch<T>`, `StructPatch`, `ListPatch<T>`.
 
 ```ts
 const list = List([1, 2, 3]);
@@ -142,30 +136,29 @@ const stop = Watch(list, (patch) => {
     if (removed.length) console.log("removed at", start, ":", removed);
 });
 
-list.push(4); // → added: [4]
-list.splice(0, 1); // → removed at: 0
-list.sort(); // → sorted
+list.push(4); // → added at 3 : [4]
+list.splice(0, 1); // → removed at 0 : [1]
+list.sort(); // → removed/added reflect reorder
 
 stop();
 ```
 
-`Watch(source, fn)` is sugar for `source.watch(fn)` — each primitive implements `.watch()`, `Watch` just delegates. Callback receives the patch data. Exported patch types: `ValuePatch<T>`, `StructPatch`, `ListPatch<T>`.
+The same works on `Value` and `Struct` — each with its own patch shape:
 
 ```ts
-list.watch((patch) => { ... });   // patch is ListPatch<T>
-user.watch((patch) => { ... });   // patch is StructPatch
-count.watch((patch) => { ... });  // patch is ValuePatch<T>
-```
-
-Works on `Value` and `Struct` too:
-
-```ts
-Watch(user, (patch) => {
-    const { key, prev, next } = patch;
+Watch(user, ({ key, prev, next }) => {
     console.log(`${String(key)}: ${prev} → ${next}`);
 });
 
 user.name = "carol"; // → name: bob → carol
+```
+
+Or use the method form directly on any primitive:
+
+```ts
+count.watch(({ prev, next }) => { ... });             // ValuePatch<T>
+user.watch(({ key, prev, next }) => { ... });         // StructPatch
+tasks.watch(({ start, removed, added }) => { ... });  // ListPatch<T>
 ```
 
 ---
@@ -202,12 +195,39 @@ Plain objects and arrays inside a `Struct` are **not** reactive — wrap them ex
 
 ---
 
+## Batch vs Watch
+
+|          | `Batch`           | `Watch`                 |
+| -------- | ----------------- | ----------------------- |
+| Timing   | async (microtask) | sync (immediate)        |
+| Batching | yes               | no                      |
+| Receives | —                 | patch                   |
+| Use for  | state → view      | operation → side effect |
+
+The rule of thumb: use `Batch` to derive state or render everything. Use `Watch` when you need to react to a specific operation — like appending a single node on `push` instead of rerendering the whole list.
+
+---
+
+## Configure
+
+```ts
+import { configure } from "@evgkch/reactive";
+
+configure({ batch: "sync" }); // Batch runs synchronously (useful in tests)
+configure({ batch: "async" }); // Batch batches in a microtask (default)
+
+configure({ watch: "sync" }); // Watch fires immediately on operation (default)
+configure({ watch: "async" }); // Watch callbacks are deferred/batched
+```
+
+---
+
 ## Custom primitives
 
 You can create your own reactive primitives by extending `Reactive<P>` and using `core`:
 
 1. Define a patch type `P` for your primitive.
-2. Implement `protected subscribe(w)`: call `core.track(target, key, w)` for each dependency key.
+2. Implement `protected subscribe(w)`: call `core.track(target, key, w)` for each dependency key (pass the watcher explicitly instead of relying on the current active subscriber).
 3. When state changes, call `core.trigger(target, key, patchData)`.
 
 Then `.watch()` and `Watch()` work out of the box; `Batch` will track when you call `core.track` during a read.
@@ -248,41 +268,16 @@ x.set(1); // → patch, then x: 1
 
 ---
 
-## Batch vs Watch
-
-|          | `Batch`           | `Watch`              |
-| -------- | ----------------- | -------------------- |
-| Timing   | async (microtask) | sync (immediate)     |
-| Batching | yes               | no                   |
-| Receives | —                 | patch                |
-| Use for  | state → view      | operation → mutation |
-
-The rule of thumb: use `Batch` to derive state or render everything. Use `Watch` when you need to react to a specific operation — like appending a single DOM node on `push` instead of rerendering the whole list.
-
----
-
-## Configure
-
-```ts
-import { configure } from "@evgkch/reactive";
-
-configure({ batch: true }); // Batch runs synchronously (useful in tests)
-configure({ watch: false }); // Watch batches like Batch
-```
-
----
-
 ## API reference
 
-|                      | Description                                                   |
-| -------------------- | ------------------------------------------------------------- |
-| `Value(initial)`     | Reactive cell. `.get()`, `.set(v)`, `.update(fn)`             |
-| `Struct(data)`       | Reactive object. Read/write properties as usual               |
-| `List(initial?)`     | Reactive array. Full Array API                                |
-| `Batch(fn, immediate?)`   | Runs `fn` reactively. Optional `immediate` overrides default. Returns `() => void` to stop |
-| `Watch(source, fn, immediate?)` | Sugar for `source.watch(fn, immediate?)`. Returns `() => void` to stop   |
-| `source.watch(fn, immediate?)`  | Each primitive has `.watch()`. Returns `() => void` to stop   |
-| `configure(options)`      | Set global defaults: `{ batch?, watch? }` for Batch/Watch timing        |
-| `ValuePatch<T>`, `StructPatch`, `ListPatch<T>` | Patch types for Watch callbacks (exported)        |
-| `core`                    | Low-level: `track`, `trigger`, `setActive`, `configure`, etc.          |
-| `Reactive<P>`             | Base class for custom primitives. Implement `subscribe(w)`.             |
+|                                                | Description                                                                     |
+| ---------------------------------------------- | ------------------------------------------------------------------------------- |
+| `Value(initial)`                               | Reactive cell. `.get()`, `.set(v)`, `.update(fn)`                               |
+| `Struct(data)`                                 | Reactive object. Read/write properties as usual                                 |
+| `List(initial?)`                               | Reactive array. Full Array API                                                  |
+| `Batch(fn)`                                    | Runs `fn` reactively. Returns `() => void` to stop                              |
+| `Watch(source, fn)`                            | Attach a watcher to a primitive. Returns `() => void` to stop                   |
+| `source.watch(fn)`                             | Method form of `Watch`. Returns `() => void` to stop                            |
+| `configure(options)`                           | Set global defaults: `{ batch?: "sync" \| "async"; watch?: "sync" \| "async" }` |
+| `ValuePatch<T>`, `StructPatch`, `ListPatch<T>` | Patch types for Watch callbacks (exported)                                      |
+| `Reactive<P>`                                  | Base class for custom primitives. Implement `protected subscribe(w)`            |

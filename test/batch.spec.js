@@ -108,4 +108,36 @@ describe('Batch', () => {
       configure({ watch: true })
     })
   })
+
+  it('configure accepts "sync"/"async" aliases', async () => {
+    const v = Value(0)
+
+    // Batch: "sync" makes updates immediate
+    configure({ batch: 'sync' })
+    let runs = 0
+    Batch(() => { v.get(); runs++ })
+    v.set(1)
+    assert.strictEqual(runs, 2)
+
+    // Batch: "async" batches into a microtask
+    configure({ batch: 'async' })
+    let asyncRuns = 0
+    Batch(() => { v.get(); asyncRuns++ })
+    v.set(2)
+    assert.strictEqual(asyncRuns, 1)
+    await tick()
+    assert.strictEqual(asyncRuns, 2)
+
+    // Watch: "async" defers patches
+    configure({ watch: 'async' })
+    const collected = []
+    Watch(v, (patch) => collected.push(patch))
+    v.set(3)
+    assert.strictEqual(collected.length, 0)
+    await tick()
+    assert.strictEqual(collected.length, 1)
+
+    // reset to defaults for other tests
+    configure({ batch: false, watch: true })
+  })
 })

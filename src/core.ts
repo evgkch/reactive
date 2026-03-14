@@ -107,9 +107,20 @@ function trigger<D>(target: object, key: string | symbol, data?: D): void {
 }
 
 export const core = {
-    configure(opts?: { batch?: boolean; watch?: boolean }): void {
-        if (opts?.batch !== undefined) defaultBatchImmediate = opts.batch;
-        if (opts?.watch !== undefined) defaultWatchImmediate = opts.watch;
+    configure(opts?: {
+        batch?: boolean | "sync" | "async";
+        watch?: boolean | "sync" | "async";
+    }): void {
+        if (opts?.batch !== undefined) {
+            if (opts.batch === "sync") defaultBatchImmediate = true;
+            else if (opts.batch === "async") defaultBatchImmediate = false;
+            else defaultBatchImmediate = opts.batch;
+        }
+        if (opts?.watch !== undefined) {
+            if (opts.watch === "sync") defaultWatchImmediate = true;
+            else if (opts.watch === "async") defaultWatchImmediate = false;
+            else defaultWatchImmediate = opts.watch;
+        }
     },
     getDefaultBatchImmediate(): boolean {
         return defaultBatchImmediate;
