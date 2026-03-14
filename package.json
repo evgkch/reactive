@@ -1,6 +1,6 @@
 {
   "name": "@evgkch/reactive",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Explicit reactive primitives: Value, Struct, List, Batch, Watch",
   "type": "module",
   "sideEffects": false,
@@ -13,7 +13,10 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist", "examples"],
+  "files": [
+    "dist",
+    "examples"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "npm run build && node --test test/*.spec.js test/benchmark/*.spec.js",
@@ -27,7 +30,12 @@
   },
   "homepage": "https://github.com/evgkch/reactive#readme",
   "bugs": "https://github.com/evgkch/reactive/issues",
-  "keywords": ["reactive", "signal", "batch", "proxy"],
+  "keywords": [
+    "reactive",
+    "signal",
+    "batch",
+    "proxy"
+  ],
   "license": "ISC",
   "engines": {
     "node": ">=16"
