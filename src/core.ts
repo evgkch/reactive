@@ -92,13 +92,11 @@ function track(
 function trigger<D>(target: object, key: string | symbol, data?: D): void {
     const dep = targetMap.get(target)?.get(key);
     if (!dep) return;
-    const patch = data !== undefined ? ({ target, key, data: data as D } as Patch) : null;
+    const patch: Patch = { target, key, data };
     for (const s of dep) {
         if ("call" in s) {
-            if (patch) {
-                if (s.immediate) s.call(patch);
-                else scheduleWatcher(s, patch);
-            }
+            if (s.immediate) s.call(patch);
+            else scheduleWatcher(s, patch);
         } else {
             if (s.immediate) s.run();
             else scheduleBatcher(s);
