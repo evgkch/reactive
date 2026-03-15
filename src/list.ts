@@ -3,12 +3,15 @@ import { Reactive } from "./reactive.js";
 
 const LENGTH_KEY = Symbol("length");
 const REORDER_KEY = Symbol("reorder");
+const LIST_KEY = Symbol("list");
 
 /** Unified patch for all List operations */
 export interface ListPatch<T> {
   start: number;
   removed: T[];
   added: T[];
+  /** Present and true for sort/reverse (reorder-only, length unchanged). */
+  reorder?: boolean;
 }
 
 const ITERATING = new Set([
@@ -91,6 +94,7 @@ export class ListImpl<T> extends Reactive<ListPatch<T>> {
           };
           core.trigger(o, k, patch);
           if (i >= prevLen) core.trigger(arr, LENGTH_KEY, patch);
+          core.trigger(arr, LIST_KEY, patch);
         }
         return true;
       },
@@ -103,6 +107,7 @@ export class ListImpl<T> extends Reactive<ListPatch<T>> {
       for (const item of items) arr[arr.length] = item;
       const patch: ListPatch<T> = { start, removed: [], added: items };
       core.trigger(arr, LENGTH_KEY, patch);
+      core.trigger(arr, LIST_KEY, patch);
       return arr.length;
     };
 
@@ -114,6 +119,7 @@ export class ListImpl<T> extends Reactive<ListPatch<T>> {
         added: [],
       };
       core.trigger(arr, LENGTH_KEY, patch);
+      core.trigger(arr, LIST_KEY, patch);
       return val;
     };
 
@@ -122,6 +128,7 @@ export class ListImpl<T> extends Reactive<ListPatch<T>> {
       const patch: ListPatch<T> = { start: 0, removed: [val], added: [] };
       core.trigger(arr, LENGTH_KEY, patch);
       core.trigger(arr, REORDER_KEY, patch);
+      core.trigger(arr, LIST_KEY, patch);
       return val;
     };
 
@@ -130,6 +137,7 @@ export class ListImpl<T> extends Reactive<ListPatch<T>> {
       const patch: ListPatch<T> = { start: 0, removed: [], added: items };
       core.trigger(arr, LENGTH_KEY, patch);
       core.trigger(arr, REORDER_KEY, patch);
+      core.trigger(arr, LIST_KEY, patch);
       return arr.length;
     };
 
@@ -141,6 +149,7 @@ export class ListImpl<T> extends Reactive<ListPatch<T>> {
       const patch: ListPatch<T> = { start, removed, added: items };
       core.trigger(arr, LENGTH_KEY, patch);
       core.trigger(arr, REORDER_KEY, patch);
+      core.trigger(arr, LIST_KEY, patch);
       return removed;
     };
 
@@ -151,8 +160,10 @@ export class ListImpl<T> extends Reactive<ListPatch<T>> {
         start: 0,
         removed: before,
         added: [...arr],
+        reorder: true,
       };
       core.trigger(arr, REORDER_KEY, patch);
+      core.trigger(arr, LIST_KEY, patch);
       return proxy;
     };
 
@@ -163,8 +174,10 @@ export class ListImpl<T> extends Reactive<ListPatch<T>> {
         start: 0,
         removed: before,
         added: [...arr],
+        reorder: true,
       };
       core.trigger(arr, REORDER_KEY, patch);
+      core.trigger(arr, LIST_KEY, patch);
       return proxy;
     };
 
@@ -200,8 +213,7 @@ export class ListImpl<T> extends Reactive<ListPatch<T>> {
   }
 
   protected subscribe(w: WatcherLike): void {
-    core.track(this.#arr, LENGTH_KEY, w);
-    core.track(this.#arr, REORDER_KEY, w);
+    core.track(this.#arr, LIST_KEY, w);
   }
 }
 

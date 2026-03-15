@@ -130,6 +130,31 @@ describe('List', () => {
     assert.ok(sortPatch)
   })
 
+  it('Watch receives exactly one patch per List operation', async () => {
+    const list = List([1, 2, 3])
+    const patches = []
+    Watch(list, (p) => patches.push(p))
+
+    list.splice(1, 1, 10)
+    await tick()
+    assert.strictEqual(patches.length, 1)
+    assert.deepStrictEqual(patches[0], {
+      start: 1,
+      removed: [2],
+      added: [10],
+    })
+
+    patches.length = 0
+    list[0] = 99
+    await tick()
+    assert.strictEqual(patches.length, 1)
+    assert.deepStrictEqual(patches[0], {
+      start: 0,
+      removed: [1],
+      added: [99],
+    })
+  })
+
   it('.watch() is same as Watch(list, fn)', () => {
     const list = List([1, 2])
     const patches = []

@@ -1,7 +1,7 @@
 /**
  * Example: pass your logger. The library calls:
- *   Batcher: logger.log("[reactive] [batch#id:run]"), logger.log("...[batch#id:stop]")
- *   Watcher: logger.log("[reactive] [watch#id:call]", patch), logger.log("...[watch#id:stop]")
+ *   Batcher: logger.log("[reactive] [batch#id:init]", this), logger.log("...[batch#id:run]"), logger.log("...[batch#id:stop]")
+ *   Watcher: logger.log("[reactive] [watch#id:init]", this), logger.log("...[watch#id:call]", patch), logger.log("...[watch#id:stop]")
  * Run: node examples/logger.js
  */
 import { configure, Value, Batch, Watch } from "../dist/index.js";

@@ -143,6 +143,8 @@ list.sort();       // → removed/added reflect reorder
 stop();
 ```
 
+For `sort` and `reverse`, the patch also has `reorder: true` (reorder-only, length unchanged).
+
 The same works on `Value` and `Struct` — each with its own patch shape:
 
 ```ts
@@ -158,7 +160,7 @@ Or use the method form directly on any primitive:
 ```ts
 count.watch(({ prev, next }) => { ... });             // ValuePatch<T>
 user.watch(({ key, prev, next }) => { ... });         // StructPatch
-tasks.watch(({ start, removed, added }) => { ... });  // ListPatch<T>
+tasks.watch(({ start, removed, added, reorder }) => { ... });  // ListPatch<T>
 ```
 
 ---
@@ -234,7 +236,7 @@ configure({ watch: "async" });  // Watch callbacks are deferred/batched
 
 The library does not implement a logger. You pass **your** logger; the library calls `logger.log(message)` or `logger.log(message, patch)`.
 
-**Message format:** `[reactive] [batch#id:run]`, `[reactive] [batch#id:stop]`, `[reactive] [watch#id:call]`, `[reactive] [watch#id:stop]`. On `watch:call` the second argument is the patch (same object your Watch callback receives).
+**Message format:** `[reactive] [batch#id:init]`, `[batch#id:run]`, `[batch#id:stop]`, `[reactive] [watch#id:init]`, `[watch#id:call]`, `[watch#id:stop]`. For `init` the second argument is `this` (the Batcher/Watcher instance). For `watch:call` the second argument is the patch.
 
 ```ts
 import { configure, type ReactiveLogger } from "@evgkch/reactive";
