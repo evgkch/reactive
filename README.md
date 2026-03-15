@@ -75,7 +75,7 @@ const user = Struct({ name: "alice", age: 25 });
 Batch(() => console.log("name:", user.name));
 
 user.name = "bob"; // → Batch runs
-user.age = 30; // → Batch does NOT run (nobody reads age)
+user.age = 30;     // → Batch does NOT run (nobody reads age)
 ```
 
 ### List
@@ -88,7 +88,7 @@ const tasks = List(["buy milk", "write code"]);
 Batch(() => console.log(tasks.map((t) => t.toUpperCase())));
 
 tasks.push("ship it"); // → Batch runs
-tasks.sort(); // → Batch runs
+tasks.sort();          // → Batch runs
 ```
 
 Supported methods: `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`, `fill`, `copyWithin` — plus all read methods: `map`, `filter`, `forEach`, `find`, `findIndex`, `some`, `every`, `reduce`, `includes`, `indexOf`.
@@ -136,9 +136,9 @@ const stop = Watch(list, (patch) => {
     if (removed.length) console.log("removed at", start, ":", removed);
 });
 
-list.push(4); // → added at 3 : [4]
+list.push(4);      // → added at 3 : [4]
 list.splice(0, 1); // → removed at 0 : [1]
-list.sort(); // → removed/added reflect reorder
+list.sort();       // → removed/added reflect reorder
 
 stop();
 ```
@@ -187,8 +187,8 @@ Batch(() => {
     render(filtered);
 });
 
-state.filter.set("active"); // → rerenders filtered list
-state.items[0].done = true; // → nested Struct triggers Batch
+state.filter.set("active");    // → rerenders filtered list
+state.items[0].done = true;    // → nested Struct triggers Batch
 ```
 
 Plain objects and arrays inside a `Struct` are **not** reactive — wrap them explicitly if you need tracking.
@@ -213,44 +213,42 @@ The rule of thumb: use `Batch` to derive state or render everything. Use `Watch`
 ```ts
 import { configure } from "@evgkch/reactive";
 
-configure({ batch: "sync" }); // Batch runs synchronously (useful in tests)
-configure({ batch: "async" }); // Batch batches in a microtask (default)
+configure({ batch: "sync" });   // Batch runs synchronously (useful in tests)
+configure({ batch: "async" });  // Batch runs in a microtask (default)
 
-configure({ watch: "sync" }); // Watch fires immediately on operation (default)
-configure({ watch: "async" }); // Watch callbacks are deferred/batched
+configure({ watch: "sync" });   // Watch fires immediately on operation (default)
+configure({ watch: "async" });  // Watch callbacks are deferred/batched
 ```
+
+**Options**
+
+| Option   | Type                              | Default   | Description                        |
+| -------- | --------------------------------- | --------- | ---------------------------------- |
+| `batch?` | `"sync" \| "async"`              | `"async"` | Batch run mode.                    |
+| `watch?` | `"sync" \| "async"`              | `"sync"`  | Watch run mode.                    |
+| `log?`   | `{ logger: ReactiveLogger; batch?: boolean; watch?: boolean } \| null` | —  | See [Debug logging](#debug-logging). |
 
 ---
 
 ## Debug logging
 
-For development you can enable logging so all Batch runs, Watch patches, and stop calls are printed to the console. Objects (targets, Values, Lists, etc.) get **stable ids** (e.g. `t1`, `t2`) so you can correlate them in DevTools.
+The library does not implement a logger. You pass **your** logger; the library calls `logger.log(message)` or `logger.log(message, patch)`.
+
+**Message format:** `[reactive] [batch#id:run]`, `[reactive] [batch#id:stop]`, `[reactive] [watch#id:call]`, `[reactive] [watch#id:stop]`. On `watch:call` the second argument is the patch (same object your Watch callback receives).
 
 ```ts
-import { configure, getObjectId } from "@evgkch/reactive";
+import { configure, type ReactiveLogger } from "@evgkch/reactive";
 
-// Default level: Batch run (init/triggered), Watch patch summary, stop()
-configure({ log: true });
+const logger: ReactiveLogger = {
+    log(message, meta) {
+        console.log(message, meta ?? "");
+    },
+};
 
-// Verbose: also track (who subscribed to what), trigger (who was notified), configure
-configure({ log: "verbose" });
-
-// Off (default)
-configure({ log: false });
+configure({ log: { logger } });                             // Batch and Watch
+configure({ log: { logger, batch: true, watch: false } });  // only Batch
+configure({ log: null });                                   // detach
 ```
-
-**Log levels**
-
-| Level       | What is logged |
-| ----------- | ------------------------------------------------------------------------------ |
-| `false`     | Nothing (default).                                                             |
-| `true`      | `[Batch #n] run (init \| triggered)`, `[Watch #n] t#key patchSummary`, `stop`. |
-| `"verbose"` | Above + `[track]`, `[trigger]`, `[configure]`.                                  |
-
-**Using object ids**
-
-- Every reactive target (Value, Struct, List, your primitive) gets a stable id like `t1`, `t2` when it first appears in a log line.
-- To inspect an object in the console, call `getObjectId(obj)` — it returns the same id and creates one if missing. You can then filter logs by that id or set breakpoints.
 
 ---
 
@@ -302,15 +300,16 @@ x.set(1); // → patch, then x: 1
 
 ## API reference
 
-|                                                | Description                                                                     |
-| ---------------------------------------------- | ------------------------------------------------------------------------------- |
-| `Value(initial)`                               | Reactive cell. `.get()`, `.set(v)`, `.update(fn)`                               |
-| `Struct(data)`                                 | Reactive object. Read/write properties as usual                                 |
-| `List(initial?)`                               | Reactive array. Full Array API                                                  |
-| `Batch(fn)`                                    | Runs `fn` reactively. Returns `() => void` to stop                              |
-| `Watch(source, fn)`                            | Attach a watcher to a primitive. Returns `() => void` to stop                   |
-| `source.watch(fn)`                             | Method form of `Watch`. Returns `() => void` to stop                            |
-| `configure(options)`                           | Global defaults: `{ batch?, watch?, log?: false \| true \| "verbose" }`         |
-| `getObjectId(obj)`                             | Stable id for any object (for correlating logs). Returns e.g. `"t1"`.           |
-| `ValuePatch<T>`, `StructPatch`, `ListPatch<T>` | Patch types for Watch callbacks (exported)                                     |
-| `Reactive<P>`                                  | Base class for custom primitives. Implement `protected subscribe(w)`            |
+| | Description |
+| ----------------------------------------------- | ------------------------------------------------------------------------------- |
+| `Value(initial)` | Reactive cell. `.get()`, `.set(v)`, `.update(fn)` |
+| `Struct(data)` | Reactive object. Read/write properties as usual |
+| `List(initial?)` | Reactive array. Full Array API |
+| `Batch(fn)` | Runs `fn` reactively. Returns `() => void` to stop |
+| `Watch(source, fn)` | Attach a watcher to a primitive. Returns `() => void` to stop |
+| `primitive.watch(fn)` | Method form of `Watch`. Returns `() => void` to stop |
+| `configure(opts)` | `opts.batch?`, `opts.watch?` — run mode. `opts.log?` — `{ logger, batch?, watch? }` or `null`. |
+| `core` | Low-level API for custom primitives: `track(target, key, w?)`, `trigger(target, key, data)` |
+| `ReactiveLogger` | `{ log(message: string, meta?: unknown): void }` — you pass your logger. |
+| `ValuePatch<T>`, `StructPatch`, `ListPatch<T>` | Patch types for Watch callbacks |
+| `Reactive<P>` | Base class for custom primitives. Implement `protected subscribe(w)`, use `core.track` and `core.trigger` |

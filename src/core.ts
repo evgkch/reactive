@@ -1,5 +1,3 @@
-import * as log from "./log.js";
-
 /** Container for change data. Each primitive defines its own `data` shape. */
 export interface Patch<D = unknown> {
     target: object;
@@ -91,25 +89,11 @@ function track(
     if (dep.has(sub)) return;
     dep.add(sub);
     sub.deps.add(dep);
-    if (
-        log.getLogLevel() === "verbose" &&
-        sub.id !== undefined
-    ) {
-        log.logTrack(
-            target,
-            key,
-            "call" in sub ? "Watch" : "Batch",
-            sub.id
-        );
-    }
 }
 
 function trigger<D>(target: object, key: string | symbol, data?: D): void {
     const dep = targetMap.get(target)?.get(key);
     if (!dep) return;
-    if (log.getLogLevel() === "verbose") {
-        log.logTrigger(target, key, dep.size);
-    }
     const patch: Patch = { target, key, data };
     for (const s of dep) {
         if ("call" in s) {
@@ -122,35 +106,24 @@ function trigger<D>(target: object, key: string | symbol, data?: D): void {
     }
 }
 
+function configure(opts?: {
+    batch?: boolean | "sync" | "async";
+    watch?: boolean | "sync" | "async";
+}): void {
+    if (opts?.batch !== undefined) {
+        if (opts.batch === "sync") defaultBatchImmediate = true;
+        else if (opts.batch === "async") defaultBatchImmediate = false;
+        else defaultBatchImmediate = opts.batch;
+    }
+    if (opts?.watch !== undefined) {
+        if (opts.watch === "sync") defaultWatchImmediate = true;
+        else if (opts.watch === "async") defaultWatchImmediate = false;
+        else defaultWatchImmediate = opts.watch;
+    }
+}
+
 export const core = {
-    configure(opts?: {
-        batch?: boolean | "sync" | "async";
-        watch?: boolean | "sync" | "async";
-        log?: log.LogLevel;
-    }): void {
-        if (opts?.log !== undefined) {
-            log.setLogLevel(opts.log);
-            if (log.getLogLevel() === "verbose") {
-                log.logConfigure(
-                    Object.fromEntries(
-                        Object.entries(opts).filter(
-                            ([k]) => k === "batch" || k === "watch" || k === "log"
-                        )
-                    )
-                );
-            }
-        }
-        if (opts?.batch !== undefined) {
-            if (opts.batch === "sync") defaultBatchImmediate = true;
-            else if (opts.batch === "async") defaultBatchImmediate = false;
-            else defaultBatchImmediate = opts.batch;
-        }
-        if (opts?.watch !== undefined) {
-            if (opts.watch === "sync") defaultWatchImmediate = true;
-            else if (opts.watch === "async") defaultWatchImmediate = false;
-            else defaultWatchImmediate = opts.watch;
-        }
-    },
+    configure,
     getDefaultBatchImmediate(): boolean {
         return defaultBatchImmediate;
     },
