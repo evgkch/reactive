@@ -34,7 +34,7 @@ Everything in the library is built on these five primitives and two base classes
 Context  (@evgkch/context)
 │
 ├── Reactive<D>            deps · observe · emit · detach
-│   ├── ValueReactive<T>   — internal, bound to Value()
+│   ├── ReactiveValue<T>   — internal, bound to Value()
 │   ├── ReactiveStruct<T>  — internal, bound to proxy via WeakMap
 │   └── ReactiveList<T>    — internal, bound to proxy via WeakMap
 │

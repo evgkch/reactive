@@ -10,7 +10,7 @@ export class ValuePatch<T> {
   ) {}
 }
 
-class ValueReactive<T> extends Reactive<ValuePatch<T>> {
+class ReactiveValue<T> extends Reactive<ValuePatch<T>> {
   watch(fn: (data: ValuePatch<T>) => void): () => void {
     const w = new Watcher<ValuePatch<T>>(fn);
     this.observe(VALUE_KEY, w);
@@ -19,7 +19,7 @@ class ValueReactive<T> extends Reactive<ValuePatch<T>> {
 }
 
 export function Value<T>(initial: T) {
-  const reactive = new ValueReactive<T>();
+  const reactive = new ReactiveValue<T>();
   let raw = initial;
 
   const cell = {
