@@ -1,4 +1,3 @@
-````markdown
 # @evgkch/reactive
 
 [![npm](https://img.shields.io/npm/v/@evgkch/reactive)](https://www.npmjs.com/package/@evgkch/reactive)
@@ -303,4 +302,3 @@ clock.tick();  // → 1 → 2 (sync), tick: 2 (microtask)
 ## License
 
 ISC
-````
