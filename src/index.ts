@@ -10,6 +10,7 @@ export type { StructPatch } from "./primitives/struct.js";
 export type { ListPatch } from "./primitives/list.js";
 export { Batch, Batcher } from "./effects/batch.js";
 export { Watch, Watcher } from "./effects/watch.js";
+export { Untrack } from "./effects/untrack.js";
 export { Reactive } from "./core/reactive.js";
 export { Subscriber } from "./core/subscriber.js";
 
