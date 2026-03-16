@@ -1,7 +1,7 @@
 {
   "name": "@evgkch/reactive",
-  "version": "1.2.0",
-  "description": "Explicit reactive primitives: Value, Struct, List, Batch, Watch",
+  "version": "2.0.0",
+  "description": "Minimal reactive primitives — Value, Struct, List, Batch, Watch, built on Reactive and Subscriber",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",
@@ -20,6 +20,8 @@
   "scripts": {
     "build": "tsc",
     "test": "npm run build && node --test test/*.spec.js test/benchmark/*.spec.js",
+    "examples": "node --import tsx/esm examples/run-all.ts",
+    "examples:all": "node --import tsx/esm examples/run-all.ts",
     "prepublishOnly": "npm run build",
     "release": "npm run test && npm publish --access public"
   },
@@ -40,7 +42,11 @@
   "engines": {
     "node": ">=16"
   },
+  "dependencies": {
+    "@evgkch/context": "^1.1.0"
+  },
   "devDependencies": {
+    "tsx": "^4.7.0",
     "typescript": "^5.0.0"
   }
 }

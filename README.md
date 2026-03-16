@@ -1,3 +1,4 @@
+````markdown
 # @evgkch/reactive
 
 [![npm](https://img.shields.io/npm/v/@evgkch/reactive)](https://www.npmjs.com/package/@evgkch/reactive)
@@ -6,32 +7,58 @@ Minimal reactive primitives for JavaScript and TypeScript.
 
 ## Philosophy
 
-Most reactive libraries do too much — they auto-wrap nested objects, guess what you want to track, and hide complexity behind abstractions.
+Reactivity is explicit. You decide what is reactive. You decide what to track. No magic, no surprises.
 
-This library does the opposite: **reactivity is explicit**. You decide what is reactive. You decide what to track. No magic, no surprises.
+This library does the opposite of most reactive systems — it does not auto-wrap nested objects, does not guess what you want to track, and does not hide complexity behind abstractions.
 
-Three primitives cover everything:
+Three primitives for state:
 
 - **`Value`** — a single reactive value
 - **`Struct`** — a reactive object, tracked per property
-- **`List`** — a reactive array, tracked per index and operation
+- **`List`** — a reactive array
 
 Two ways to react:
 
 - **`Batch`** — reruns when state changes (batched, async)
 - **`Watch`** — fires when an operation happens (sync, with patch)
 
-That's the core API.
+Two base classes for building your own:
 
----
+- **`Reactive`** — base for custom reactive primitives
+- **`Subscriber`** — base for custom subscribers
+
+Everything in the library is built on these five primitives and two base classes. They are all public — you can extend any of them to build your own reactive primitives that work seamlessly with `Batch` and `Watch`.
+
+## Architecture
+
+```
+Context  (@evgkch/context)
+│
+├── Reactive<D>            deps · observe · emit · detach
+│   ├── ValueReactive<T>   — internal, bound to Value()
+│   ├── ReactiveStruct<T>  — internal, bound to proxy via WeakMap
+│   └── ReactiveList<T>    — internal, bound to proxy via WeakMap
+│
+└── Subscriber             sources · receive · close
+    ├── Batcher
+    └── Watcher<D>
+```
+
+`Context` carries the execution stack and ownership tree — close the parent, close everything below it.
+
+`Reactive` adds a dependency map — primitives know who reads them and notify on change.
+
+`Subscriber` adds a source set — effects know what they read and detach on close.
+
+`Batcher` sets itself as current context when it runs. Any `Reactive` read during execution registers it as a subscriber and reruns it on change.
+
+`Struct` and `List` return plain proxies (`T` and `T[]`). Their internal `Reactive` is bound via `WeakMap` — `Watch` finds it automatically.
 
 ## Install
 
 ```sh
 npm install @evgkch/reactive
 ```
-
----
 
 ## Quick start
 
@@ -44,62 +71,52 @@ Batch(() => {
     console.log("count:", count.get());
 });
 
-count.set(1); // → count: 1
-count.update((n) => n + 1); // → count: 2
+count.set(1);             // → count: 1 (next microtask)
+count.update(n => n + 1); // → count: 2 (next microtask)
 ```
-
----
 
 ## Primitives
 
 ### Value
 
-A single reactive cell. Read with `.get()`, write with `.set()` or `.update()`.
-
 ```ts
 const score = Value(0);
 
 score.set(10);
-score.update((n) => n * 2); // → 20
+score.update(n => n * 2);  // → 20
 
 Batch(() => console.log("score:", score.get()));
 ```
 
 ### Struct
 
-A reactive plain object. Properties are tracked individually — changing `user.name` only wakes Batch callbacks that read `user.name`.
+Returns a plain proxy — use it like a normal object. TypeScript sees the original type.
 
 ```ts
 const user = Struct({ name: "alice", age: 25 });
 
 Batch(() => console.log("name:", user.name));
 
-user.name = "bob"; // → Batch runs
-user.age = 30;     // → Batch does NOT run (nobody reads age)
+user.name = "bob";  // → Batch runs (next microtask)
+user.age = 30;      // → Batch does NOT run (nobody reads age)
 ```
 
 ### List
 
-A reactive array. Tracks individual indices, length, and order separately — so a Batch reading `list[0]` won't rerun on `push` to the end.
+Returns a plain array proxy — use it like a normal array. TypeScript sees `T[]`.
 
 ```ts
 const tasks = List(["buy milk", "write code"]);
 
-Batch(() => console.log(tasks.map((t) => t.toUpperCase())));
+Batch(() => console.log(tasks.map(t => t.toUpperCase())));
 
-tasks.push("ship it"); // → Batch runs
-tasks.sort();          // → Batch runs
+tasks.push("ship it");  // → Batch runs (next microtask)
+tasks.sort();           // → Batch runs (next microtask)
 ```
-
-Supported methods: `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`, `fill`, `copyWithin` — plus all read methods: `map`, `filter`, `forEach`, `find`, `findIndex`, `some`, `every`, `reduce`, `includes`, `indexOf`.
-
----
 
 ## Batch
 
-Runs a function immediately, then reruns it when any reactive value it read has changed. Updates are **batched in a microtask** — multiple changes in one tick produce one rerun.
-
-Returns a stop function to unsubscribe.
+Runs a function immediately, then reruns it when any reactive value it read has changed. Updates are batched in a microtask — multiple changes in one tick produce one rerun. Returns a stop function.
 
 ```ts
 const a = Value(1);
@@ -112,62 +129,64 @@ const stop = Batch(() => {
 
 a.set(10);
 b.set(20);
-// one microtask later → sum: 30  (batched, not twice)
+// one microtask later → sum: 30 (not twice)
 
 stop();
-a.set(99);
-// → silence
+a.set(99);  // → silence
 ```
-
----
 
 ## Watch
 
-Fires **synchronously** when an operation happens on a primitive. Receives a patch describing exactly what changed — not just that something changed, but what, where, and how.
-
-Each primitive has a `.watch()` method; `Watch(source, fn)` is the function form. Both return a stop function to unsubscribe. Exported patch types: `ValuePatch<T>`, `StructPatch`, `ListPatch<T>`.
+Fires synchronously when an operation happens. Receives patch data describing exactly what changed.
 
 ```ts
 const list = List([1, 2, 3]);
 
-const stop = Watch(list, (patch) => {
-    const { start, removed, added } = patch;
-    if (added.length) console.log("added at", start, ":", added);
-    if (removed.length) console.log("removed at", start, ":", removed);
+const stop = Watch(list, patch => {
+    console.log("added:", patch.added, "removed:", patch.removed);
 });
 
-list.push(4);      // → added at 3 : [4]
-list.splice(0, 1); // → removed at 0 : [1]
-list.sort();       // → removed/added reflect reorder
+list.push(4);       // → added: [4] removed: []
+list.splice(0, 1);  // → added: [] removed: [1]
 
 stop();
 ```
 
-For `sort` and `reverse`, the patch also has `reorder: true` (reorder-only, length unchanged).
-
-The same works on `Value` and `Struct` — each with its own patch shape:
+Works on `Value` and `Struct` too:
 
 ```ts
-Watch(user, ({ key, prev, next }) => {
-    console.log(`${String(key)}: ${prev} → ${next}`);
+Watch(user, patch => {
+    console.log(`${String(patch.key)}: ${patch.prev} → ${patch.next}`);
 });
 
-user.name = "carol"; // → name: bob → carol
+user.name = "carol";  // → name: bob → carol
 ```
 
-Or use the method form directly on any primitive:
+`Watch` accepts any reactive primitive — `Value`, `Struct`, or `List`. For `Struct` and `List` it finds the internal reactive via `WeakMap` automatically.
+
+Passing a non-reactive object throws:
 
 ```ts
-count.watch(({ prev, next }) => { ... });             // ValuePatch<T>
-user.watch(({ key, prev, next }) => { ... });         // StructPatch
-tasks.watch(({ start, removed, added, reorder }) => { ... });  // ListPatch<T>
+Watch({ name: "alice" }, fn)
+// → Error: Watch: source is not a reactive primitive
 ```
 
----
+Method form is available on `List`:
+
+```ts
+tasks.watch(({ start, removed, added, reorder }) => { ... })
+```
+
+## Batch vs Watch
+
+|          | `Batch`           | `Watch`                 |
+| -------- | ----------------- | ----------------------- |
+| Timing   | async (microtask) | sync                    |
+| Batching | yes               | no                      |
+| Receives | —                 | patch                   |
+| Use for  | state → view      | operation → side effect |
 
 ## Composition
-
-Primitives nest naturally. Reactivity is explicit — wrap only what you need to track.
 
 ```ts
 const state = Struct({
@@ -175,13 +194,12 @@ const state = Struct({
     items: List([
         Struct({ text: "Learn reactive", done: false }),
         Struct({ text: "Build app", done: true }),
-        Struct({ text: "Ship it", done: false }),
     ]),
 });
 
 Batch(() => {
     const f = state.filter.get();
-    const filtered = state.items.filter((item) => {
+    const filtered = state.items.filter(item => {
         if (f === "active") return !item.done;
         if (f === "completed") return item.done;
         return true;
@@ -189,57 +207,29 @@ Batch(() => {
     render(filtered);
 });
 
-state.filter.set("active");    // → rerenders filtered list
-state.items[0].done = true;    // → nested Struct triggers Batch
+state.filter.set("active");   // → rerenders next microtask
+state.items[0].done = true;   // → rerenders next microtask
 ```
 
-Plain objects and arrays inside a `Struct` are **not** reactive — wrap them explicitly if you need tracking.
+## Lifecycle
 
----
-
-## Batch vs Watch
-
-|          | `Batch`           | `Watch`                 |
-| -------- | ----------------- | ----------------------- |
-| Timing   | async (microtask) | sync (immediate)        |
-| Batching | yes               | no                      |
-| Receives | —                 | patch                   |
-| Use for  | state → view      | operation → side effect |
-
-The rule of thumb: use `Batch` to derive state or render everything. Use `Watch` when you need to react to a specific operation — like appending a single node on `push` instead of rerendering the whole list.
-
----
-
-## Configure
+`Batch` and `Watch` created inside another `Batch` are automatically stopped when the outer `Batch` stops. `Batch` created inside a component is automatically stopped when the component is destroyed.
 
 ```ts
-import { configure } from "@evgkch/reactive";
+const stop = Batch(() => {
+    Watch(list, patch => { ... })  // stops with outer Batch
+    Batch(() => { ... })           // stops with outer Batch
+})
 
-configure({ batch: "sync" });   // Batch runs synchronously (useful in tests)
-configure({ batch: "async" });  // Batch runs in a microtask (default)
-
-configure({ watch: "sync" });   // Watch fires immediately on operation (default)
-configure({ watch: "async" });  // Watch callbacks are deferred/batched
+stop()  // → everything cleaned up
 ```
-
-**Options**
-
-| Option   | Type                              | Default   | Description                        |
-| -------- | --------------------------------- | --------- | ---------------------------------- |
-| `batch?` | `"sync" \| "async"`              | `"async"` | Batch run mode.                    |
-| `watch?` | `"sync" \| "async"`              | `"sync"`  | Watch run mode.                    |
-| `log?`   | `{ logger: ReactiveLogger; batch?: boolean; watch?: boolean } \| null` | —  | See [Debug logging](#debug-logging). |
-
----
 
 ## Debug logging
 
-The library does not implement a logger. You pass **your** logger; the library calls `logger.log(message)` or `logger.log(message, patch)`.
-
-**Message format:** `[reactive] [batch#id:init]`, `[batch#id:run]`, `[batch#id:stop]`, `[reactive] [watch#id:init]`, `[watch#id:call]`, `[watch#id:stop]`. For `init` the second argument is `this` (the Batcher/Watcher instance). For `watch:call` the second argument is the patch.
+The library does not implement a logger. You pass your own — it is called with a message and optional metadata.
 
 ```ts
-import { configure, type ReactiveLogger } from "@evgkch/reactive";
+import { Batch, Watch, type ReactiveLogger } from "@evgkch/reactive";
 
 const logger: ReactiveLogger = {
     log(message, meta) {
@@ -247,71 +237,70 @@ const logger: ReactiveLogger = {
     },
 };
 
-configure({ log: { logger } });                             // Batch and Watch
-configure({ log: { logger, batch: true, watch: false } });  // only Batch
-configure({ log: null });                                   // detach
+Batch.logger = logger;
+Watch.logger = logger;
 ```
 
----
+Detach by setting to `null`:
+
+```ts
+Batch.logger = null
+Watch.logger = null
+```
 
 ## Custom primitives
 
-You can create your own reactive primitives by extending `Reactive<P>` and using `core`:
-
-1. Define a patch type `P` for your primitive.
-2. Implement `protected subscribe(w)`: call `core.track(target, key, w)` for each dependency key (pass the watcher explicitly instead of relying on the current active subscriber).
-3. When state changes, call `core.trigger(target, key, patchData)`.
-
-Then `.watch()` and `Watch()` work out of the box; `Batch` will track when you call `core.track` during a read.
+`Reactive` and `Subscriber` are the base classes that power `Value`, `Struct`, and `List`. You can extend them to build your own reactive primitives that work seamlessly with `Batch` and `Watch`.
 
 ```ts
-import { Reactive, core, Batch, Watch, type WatcherLike } from "@evgkch/reactive";
+import { Reactive, Watcher } from "@evgkch/reactive";
 
-const MY_KEY = Symbol("my");
+class Clock extends Reactive<{ prev: number; next: number }> {
+    static #KEY = Symbol("tick");
+    #value = 0;
 
-type MyPatch<T> = { prev: T; next: T };
-
-class MyPrimitive<T> extends Reactive<MyPatch<T>> {
-    #value: T;
-    constructor(initial: T) {
-        super();
-        this.#value = initial;
-    }
-    get(): T {
-        core.track(this, MY_KEY);
+    get(): number {
+        this.observe(Clock.#KEY);
         return this.#value;
     }
-    set(v: T): void {
-        if (Object.is(this.#value, v)) return;
+
+    tick(): void {
         const prev = this.#value;
-        this.#value = v;
-        core.trigger(this, MY_KEY, { prev, next: v });
+        this.#value++;
+        this.emit(Clock.#KEY, { prev, next: this.#value });
     }
-    protected subscribe(w: WatcherLike): void {
-        core.track(this, MY_KEY, w);
+
+    watch(fn: (data: { prev: number; next: number }) => void): () => void {
+        const w = new Watcher(fn);
+        this.observe(Clock.#KEY, w);
+        return () => w.close();
     }
 }
 
-const x = new MyPrimitive(0);
-Batch(() => console.log("x:", x.get()));
-Watch(x, (p) => console.log("patch:", p.prev, "→", p.next));
-x.set(1); // → patch, then x: 1
+const clock = new Clock();
+
+Batch(() => console.log("tick:", clock.get()));
+Watch(clock, ({ prev, next }) => console.log(`${prev} → ${next}`));
+
+clock.tick();  // → 0 → 1 (sync), tick: 1 (microtask)
+clock.tick();  // → 1 → 2 (sync), tick: 2 (microtask)
 ```
 
----
+## API
 
-## API reference
-
-| | Description |
-| ----------------------------------------------- | ------------------------------------------------------------------------------- |
+| | |
+| --- | --- |
 | `Value(initial)` | Reactive cell. `.get()`, `.set(v)`, `.update(fn)` |
-| `Struct(data)` | Reactive object. Read/write properties as usual |
-| `List(initial?)` | Reactive array. Full Array API |
+| `Struct(data)` | Reactive object proxy. Read/write properties as usual |
+| `List(initial?)` | Reactive array proxy. Full array API. `.watch(fn)` |
 | `Batch(fn)` | Runs `fn` reactively. Returns `() => void` to stop |
-| `Watch(source, fn)` | Attach a watcher to a primitive. Returns `() => void` to stop |
-| `primitive.watch(fn)` | Method form of `Watch`. Returns `() => void` to stop |
-| `configure(opts)` | `opts.batch?`, `opts.watch?` — run mode. `opts.log?` — `{ logger, batch?, watch? }` or `null`. |
-| `core` | Low-level API for custom primitives: `track(target, key, w?)`, `trigger(target, key, data)` |
-| `ReactiveLogger` | `{ log(message: string, meta?: unknown): void }` — you pass your logger. |
-| `ValuePatch<T>`, `StructPatch`, `ListPatch<T>` | Patch types for Watch callbacks |
-| `Reactive<P>` | Base class for custom primitives. Implement `protected subscribe(w)`, use `core.track` and `core.trigger` |
+| `Watch(source, fn)` | Attach a watcher to any primitive. Returns `() => void` to stop |
+| `Reactive<D>` | Base class for custom reactive primitives |
+| `Subscriber` | Base class for custom subscribers |
+| `Watcher<D>` | Ready-to-use subscriber for `Watch`-style callbacks |
+| `ReactiveLogger` | `{ log(message: string, meta?: unknown): void }` |
+
+## License
+
+ISC
+````
