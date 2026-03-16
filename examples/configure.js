@@ -1,4 +1,4 @@
-import { Value, Batch, Watch, configure } from "../dist/index.js";
+import { Value, Batch, Watch, configure } from "../src/index.js";
 
 const tick = () => Promise.resolve();
 
