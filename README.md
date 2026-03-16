@@ -62,16 +62,22 @@ npm install @evgkch/reactive
 ## Quick start
 
 ```ts
-import { Value, Struct, List, Batch, Watch } from "@evgkch/reactive";
+import { Value, Struct, List, Batch, Watch, Untrack } from "@evgkch/reactive";
 
 const count = Value(0);
 
 Batch(() => {
-    console.log("count:", count.get());
+    // tracked read — Batch reruns when count changes
+    const current = count.get();
+
+    // untracked read — does NOT register a dependency
+    const snapshot = Untrack(() => count.get());
+
+    console.log("count:", current, "snapshot:", snapshot);
 });
 
-count.set(1);             // → count: 1 (next microtask)
-count.update(n => n + 1); // → count: 2 (next microtask)
+count.set(1); // → logs with updated values (next microtask)
+count.update((n) => n + 1); // → logs again (next microtask)
 ```
 
 ## Primitives
@@ -82,7 +88,7 @@ count.update(n => n + 1); // → count: 2 (next microtask)
 const score = Value(0);
 
 score.set(10);
-score.update(n => n * 2);  // → 20
+score.update((n) => n * 2); // → 20
 
 Batch(() => console.log("score:", score.get()));
 ```
@@ -96,8 +102,8 @@ const user = Struct({ name: "alice", age: 25 });
 
 Batch(() => console.log("name:", user.name));
 
-user.name = "bob";  // → Batch runs (next microtask)
-user.age = 30;      // → Batch does NOT run (nobody reads age)
+user.name = "bob"; // → Batch runs (next microtask)
+user.age = 30; // → Batch does NOT run (nobody reads age)
 ```
 
 ### List
@@ -107,10 +113,10 @@ Returns a plain array proxy — use it like a normal array. TypeScript sees `T[]
 ```ts
 const tasks = List(["buy milk", "write code"]);
 
-Batch(() => console.log(tasks.map(t => t.toUpperCase())));
+Batch(() => console.log(tasks.map((t) => t.toUpperCase())));
 
-tasks.push("ship it");  // → Batch runs (next microtask)
-tasks.sort();           // → Batch runs (next microtask)
+tasks.push("ship it"); // → Batch runs (next microtask)
+tasks.sort(); // → Batch runs (next microtask)
 ```
 
 ## Batch
@@ -131,7 +137,7 @@ b.set(20);
 // one microtask later → sum: 30 (not twice)
 
 stop();
-a.set(99);  // → silence
+a.set(99); // → silence
 ```
 
 ## Watch
@@ -141,12 +147,12 @@ Fires synchronously when an operation happens. Receives patch data describing ex
 ```ts
 const list = List([1, 2, 3]);
 
-const stop = Watch(list, patch => {
+const stop = Watch(list, (patch) => {
     console.log("added:", patch.added, "removed:", patch.removed);
 });
 
-list.push(4);       // → added: [4] removed: []
-list.splice(0, 1);  // → added: [] removed: [1]
+list.push(4); // → added: [4] removed: []
+list.splice(0, 1); // → added: [] removed: [1]
 
 stop();
 ```
@@ -154,11 +160,11 @@ stop();
 Works on `Value` and `Struct` too:
 
 ```ts
-Watch(user, patch => {
+Watch(user, (patch) => {
     console.log(`${String(patch.key)}: ${patch.prev} → ${patch.next}`);
 });
 
-user.name = "carol";  // → name: bob → carol
+user.name = "carol"; // → name: bob → carol
 ```
 
 `Watch` accepts any reactive primitive — `Value`, `Struct`, or `List`. For `Struct` and `List` it finds the internal reactive via `WeakMap` automatically.
@@ -166,7 +172,7 @@ user.name = "carol";  // → name: bob → carol
 Passing a non-reactive object throws:
 
 ```ts
-Watch({ name: "alice" }, fn)
+Watch({ name: "alice" }, fn);
 // → Error: Watch: source is not a reactive primitive
 ```
 
@@ -190,15 +196,12 @@ tasks.watch(({ start, removed, added, reorder }) => { ... })
 ```ts
 const state = Struct({
     filter: Value("all"),
-    items: List([
-        Struct({ text: "Learn reactive", done: false }),
-        Struct({ text: "Build app", done: true }),
-    ]),
+    items: List([Struct({ text: "Learn reactive", done: false }), Struct({ text: "Build app", done: true })]),
 });
 
 Batch(() => {
     const f = state.filter.get();
-    const filtered = state.items.filter(item => {
+    const filtered = state.items.filter((item) => {
         if (f === "active") return !item.done;
         if (f === "completed") return item.done;
         return true;
@@ -206,8 +209,8 @@ Batch(() => {
     render(filtered);
 });
 
-state.filter.set("active");   // → rerenders next microtask
-state.items[0].done = true;   // → rerenders next microtask
+state.filter.set("active"); // → rerenders next microtask
+state.items[0].done = true; // → rerenders next microtask
 ```
 
 ## Lifecycle
@@ -252,8 +255,8 @@ Watch.logger = logger;
 Detach by setting to `null`:
 
 ```ts
-Batch.logger = null
-Watch.logger = null
+Batch.logger = null;
+Watch.logger = null;
 ```
 
 ## Custom primitives
@@ -290,23 +293,24 @@ const clock = new Clock();
 Batch(() => console.log("tick:", clock.get()));
 Watch(clock, ({ prev, next }) => console.log(`${prev} → ${next}`));
 
-clock.tick();  // → 0 → 1 (sync), tick: 1 (microtask)
-clock.tick();  // → 1 → 2 (sync), tick: 2 (microtask)
+clock.tick(); // → 0 → 1 (sync), tick: 1 (microtask)
+clock.tick(); // → 1 → 2 (sync), tick: 2 (microtask)
 ```
 
 ## API
 
-| | |
-| --- | --- |
-| `Value(initial)` | Reactive cell. `.get()`, `.set(v)`, `.update(fn)` |
-| `Struct(data)` | Reactive object proxy. Read/write properties as usual |
-| `List(initial?)` | Reactive array proxy. Full array API. `.watch(fn)` |
-| `Batch(fn)` | Runs `fn` reactively. Returns `() => void` to stop |
-| `Watch(source, fn)` | Attach a watcher to any primitive. Returns `() => void` to stop |
-| `Reactive<D>` | Base class for custom reactive primitives |
-| `Subscriber` | Base class for custom subscribers |
-| `Watcher<D>` | Ready-to-use subscriber for `Watch`-style callbacks |
-| `ReactiveLogger` | `{ log(message: string, meta?: unknown): void }` |
+|                     |                                                                                |
+| ------------------- | ------------------------------------------------------------------------------ |
+| `Value(initial)`    | Reactive cell. `.get()`, `.set(v)`, `.update(fn)`                              |
+| `Struct(data)`      | Reactive object proxy. Read/write properties as usual                          |
+| `List(initial?)`    | Reactive array proxy. Full array API. `.watch(fn)`                             |
+| `Batch(fn)`         | Runs `fn` reactively. Returns `() => void` to stop                             |
+| `Untrack(fn)`       | Runs `fn` outside of any subscriber. Reads inside do not register dependencies |
+| `Watch(source, fn)` | Attach a watcher to any primitive. Returns `() => void` to stop                |
+| `Reactive<D>`       | Base class for custom reactive primitives                                      |
+| `Subscriber`        | Base class for custom subscribers                                              |
+| `Watcher<D>`        | Ready-to-use subscriber for `Watch`-style callbacks                            |
+| `ReactiveLogger`    | `{ log(message: string, meta?: unknown): void }`                               |
 
 ## License
 

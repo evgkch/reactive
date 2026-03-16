@@ -1,11 +1,18 @@
-import { Value, Batch } from "../../src/index.js";
+import { Value, Batch, Untrack } from "../../src/index.js";
 
 // Reactive cell — holds a single value
 const count = Value(0);
 
 // Batch reruns when count changes
 Batch(() => {
-  count.get();
+  // tracked read — reruns Batch when count changes
+  const current = count.get();
+
+  // untracked read — does NOT register a dependency
+  const snapshot = Untrack(() => count.get());
+
+  current;
+  snapshot;
 });
 
 count.set(1); // → count: 1
