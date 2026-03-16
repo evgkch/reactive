@@ -212,12 +212,21 @@ state.items[0].done = true;   // → rerenders next microtask
 
 ## Lifecycle
 
-`Batch` and `Watch` created inside another `Batch` are automatically stopped when the outer `Batch` stops. `Batch` created inside a component is automatically stopped when the component is destroyed.
+`Batch` and `Watch` created inside another `Batch` are **owned** by the outer `Batch`:
+
+- they are automatically stopped when the outer `Batch` stops;
+- they are torn down and recreated on each outer `Batch` rerun (no accumulation across runs).
 
 ```ts
 const stop = Batch(() => {
-    Watch(list, patch => { ... })  // stops with outer Batch
-    Batch(() => { ... })           // stops with outer Batch
+    value.get();
+
+    // both effects belong to the outer Batch:
+    // - they can react to their own dependencies between reruns
+    // - they are recreated on each outer rerun
+    // - they are stopped when `stop()` is called
+    Watch(list, patch => { ... })
+    Batch(() => { ... })
 })
 
 stop()  // → everything cleaned up

@@ -24,7 +24,8 @@ class TestSubscriber extends Subscriber {
 describe("Subscriber", () => {
   it("sources is empty on creation", () => {
     const sub = new TestSubscriber();
-    assert.strictEqual(sub.sources.size, 0);
+    // internal sources is implementation detail; behaviourally, nothing is tracked yet
+    assert.deepStrictEqual(sub.received, []);
   });
 
   it("close unsubscribes from all sources", () => {
@@ -33,11 +34,10 @@ describe("Subscriber", () => {
     const r2 = new TestReactive();
     r1.track(sub);
     r2.track(sub);
-    assert.strictEqual(sub.sources.size, 2);
 
     sub.close();
 
-    assert.strictEqual(sub.sources.size, 0);
+    // subsequent triggers should not reach subscriber
     r1.trigger(1);
     r2.trigger(2);
     assert.deepStrictEqual(sub.received, []);
@@ -47,11 +47,13 @@ describe("Subscriber", () => {
     const sub = new TestSubscriber();
     const r = new TestReactive();
     r.track(sub);
-    assert.ok(sub.sources.size > 0);
+    r.trigger(1);
+    assert.deepStrictEqual(sub.received, [1]);
 
     sub.close();
 
-    assert.strictEqual(sub.sources.size, 0);
+    r.trigger(2);
+    assert.deepStrictEqual(sub.received, [1]);
   });
 
   it("double close does not throw", () => {

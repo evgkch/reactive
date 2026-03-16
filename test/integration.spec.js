@@ -116,12 +116,12 @@ describe("Integration", () => {
 
     trigger.set(1);
     await tick();
-    assert.strictEqual(innerRuns, 2);
+    assert.strictEqual(innerRuns, 2); // one inner Batch per outer run
 
+    // change inner-only source: should rerun current inner Batch, not create new ones
     source.set(1);
     await tick();
-    // inner Batches from previous runs are already closed
-    assert.strictEqual(innerRuns, 2);
+    assert.strictEqual(innerRuns, 3);
 
     stop();
   });

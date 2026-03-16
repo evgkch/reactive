@@ -18,11 +18,11 @@ b.set(20);
 stop();
 a.set(99); // → silence
 
-// Nested Batch — runs once, then stops
+// Nested Batch — inner Batch is tied to the outer lifecycle
 Batch(() => {
   a.get();
   Batch(() => {
-    // one-shot: runs once when outer runs, then closes
+    // inner Batch tracks its own deps and is cleaned up when the outer Batch stops
     b.get();
   });
 });

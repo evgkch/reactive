@@ -13,6 +13,5 @@ count.set(1); // → nothing, same value
 count.update((n) => n + 1); // → count: 2
 
 // Watch fires synchronously with prev/next
-count.watch(() => {});
-
-count.set(10); // → 2 → 10 (sync), count: 10 (microtask)
+// (use global Watch helper with Value)
+// Watch(count, ({ prev, next }) => { ... });

@@ -24,13 +24,7 @@ export class Batcher extends Subscriber {
 
   constructor(fn: () => void) {
     super(Context.current());
-    this.#fn =
-      Context.current() instanceof Subscriber
-        ? () => {
-            fn();
-            this.close();
-          }
-        : fn;
+    this.#fn = fn;
     this.execute();
   }
 
@@ -41,6 +35,7 @@ export class Batcher extends Subscriber {
 
   execute(): void {
     if (this.closed) return;
+    this.teardown();
     this.run(() => this.#fn());
   }
 

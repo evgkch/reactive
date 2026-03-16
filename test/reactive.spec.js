@@ -33,17 +33,19 @@ describe("Reactive", () => {
     const r = new TestReactive();
     const sub = new TestSubscriber();
     sub.run(() => {
-      // inside subscriber context: Context.current() is sub
       r.observeKey("a");
     });
-    assert.ok(sub.sources.has(r));
+    // no error and subsequent emits reach the subscriber -> dep added
+    r.emitKey("a", 123);
+    assert.strictEqual(sub.calls, 1);
   });
 
   it("observe with explicit subscriber adds without Context.current", () => {
     const r = new TestReactive();
     const sub = new TestSubscriber();
     r.observeKey("a", sub);
-    assert.ok(sub.sources.has(r));
+    r.emitKey("a", 123);
+    assert.strictEqual(sub.calls, 1);
   });
 
   it("observe twice with same subscriber does not duplicate deps", () => {
@@ -51,8 +53,8 @@ describe("Reactive", () => {
     const sub = new TestSubscriber();
     r.observeKey("a", sub);
     r.observeKey("a", sub);
-    // behaviour: Set of subscribers cannot contain duplicates
-    assert.strictEqual(sub.sources.size, 1);
+    r.emitKey("a", 123);
+    assert.strictEqual(sub.calls, 1);
   });
 
   it("emit with no subscribers does nothing", () => {

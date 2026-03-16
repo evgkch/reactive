@@ -25,7 +25,7 @@ export abstract class Reactive<D = unknown> extends Context {
       this.#deps.set(key, dep);
     }
     dep.add(s);
-    s.sources.add(this);
+    s.attach(this);
   }
 
   emit(key: string | symbol, data: D): void {

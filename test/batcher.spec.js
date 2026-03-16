@@ -64,7 +64,7 @@ describe("Batch / Batcher", () => {
     assert.doesNotThrow(() => stop());
   });
 
-  it("inner Batch in Batch is one-off and closes after first run", async () => {
+  it("inner Batch reacts to its own dependencies independently of outer Batch", async () => {
     const outer = Value(0);
     const innerSource = Value(0);
     let innerRuns = 0;
@@ -80,12 +80,7 @@ describe("Batch / Batcher", () => {
     await tick();
     assert.strictEqual(innerRuns, 1);
 
-    // Change outer: rerun outer Batch, inner Batch should be recreated and closed again
-    outer.set(1);
-    await tick();
-    assert.strictEqual(innerRuns, 2);
-
-    // inner Batch should not keep running on innerSource changes
+    // Change inner-only source: should rerun inner Batch, outer untouched
     innerSource.set(1);
     await tick();
     assert.strictEqual(innerRuns, 2);
@@ -93,7 +88,7 @@ describe("Batch / Batcher", () => {
     stopOuter();
   });
 
-  it("inner Batch in Batch does not accumulate on outer reruns", async () => {
+  it("inner Batches are closed when outer Batch is stopped", async () => {
     const trigger = Value(0);
     const source = Value(0);
     let runs = 0;
@@ -109,16 +104,15 @@ describe("Batch / Batcher", () => {
     await tick();
     assert.strictEqual(runs, 1);
 
-    trigger.set(1);
-    await tick();
-    assert.strictEqual(runs, 2); // one inner Batch per each outer run
-
     source.set(1);
     await tick();
-    // all inner Batches are already closed, no new ones are created
     assert.strictEqual(runs, 2);
 
+    // stop outer: inner should also stop reacting
     stop();
+    source.set(2);
+    await tick();
+    assert.strictEqual(runs, 2);
   });
 
   it("Batch outside context lives until explicit stop", async () => {
